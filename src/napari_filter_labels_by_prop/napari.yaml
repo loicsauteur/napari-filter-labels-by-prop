@@ -3,28 +3,33 @@ display_name: Filter labels by properties
 # use 'hidden' to remove plugin from napari hub search results
 visibility: public
 # see https://napari.org/stable/plugins/technical_references/manifest.html#fields for valid categories
-categories: ["Annotation", "Segmentation", "Acquisition"]
+categories: ["Annotation", "Segmentation"]
 contributions:
   commands:
-    - id: napari-filter-labels-by-prop.make_container_widget
-      python_name: napari_filter_labels_by_prop:ImageThreshold
-      title: Make threshold Container widget
-    - id: napari-filter-labels-by-prop.make_magic_widget
-      python_name: napari_filter_labels_by_prop:threshold_magic_widget
-      title: Make threshold magic widget
-    - id: napari-filter-labels-by-prop.make_function_widget
-      python_name: napari_filter_labels_by_prop:threshold_autogenerate_widget
-      title: Make threshold function widget
-    - id: napari-filter-labels-by-prop.make_qwidget
-      python_name: napari_filter_labels_by_prop:ExampleQWidget
-      title: Make example QWidget
+    - id: napari-filter-labels-by-prop._filter_by_widget
+      python_name: napari_filter_labels_by_prop._filter_by_widget:FilterByWidget
+      title: Filter labels by property
+    #- id: napari-filter-labels-by-prop.make_container_widget
+    #  python_name: napari_filter_labels_by_prop:ImageThreshold
+    #  title: Make threshold Container widget
+    #- id: napari-filter-labels-by-prop.make_magic_widget
+    #  python_name: napari_filter_labels_by_prop:threshold_magic_widget
+    #  title: Make threshold magic widget
+    #- id: napari-filter-labels-by-prop.make_function_widget
+    #  python_name: napari_filter_labels_by_prop:threshold_autogenerate_widget
+    #  title: Make threshold function widget
+    #- id: napari-filter-labels-by-prop.make_qwidget
+    #  python_name: napari_filter_labels_by_prop:ExampleQWidget
+    #  title: Make example QWidget
   widgets:
-    - command: napari-filter-labels-by-prop.make_container_widget
-      display_name: Container Threshold
-    - command: napari-filter-labels-by-prop.make_magic_widget
-      display_name: Magic Threshold
-    - command: napari-filter-labels-by-prop.make_function_widget
-      autogenerate: true
-      display_name: Autogenerate Threshold
-    - command: napari-filter-labels-by-prop.make_qwidget
-      display_name: Example QWidget
+    - command: napari-filter-labels-by-prop._filter_by_widget
+      display_name: Filter labels by properties
+    #- command: napari-filter-labels-by-prop.make_container_widget
+    #  display_name: Container Threshold
+    #- command: napari-filter-labels-by-prop.make_magic_widget
+    #  display_name: Magic Threshold
+    #- command: napari-filter-labels-by-prop.make_function_widget
+    #  autogenerate: true
+    #  display_name: Autogenerate Threshold
+    #- command: napari-filter-labels-by-prop.make_qwidget
+    #  display_name: Example QWidget
