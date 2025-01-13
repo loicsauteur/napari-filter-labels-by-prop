@@ -9,6 +9,8 @@ from qtpy.QtWidgets import (
 )
 from skimage.measure import regionprops_table
 
+from napari_filter_labels_by_prop.PropFilter import PropFilter
+
 
 class FilterByWidget(QWidget):
 
@@ -21,6 +23,8 @@ class FilterByWidget(QWidget):
         self.img_layer_name = None
         self.lbl_combobox = QComboBox()
         self.img_combobox = QComboBox()
+        self.shape_match = QLabel("")
+        self.shape_match.setStyleSheet("color: red")
         self.props_binary = [
             "label",
             "area",
@@ -55,7 +59,6 @@ class FilterByWidget(QWidget):
             "solidity",
         ]
         self.prop_table = None
-        self.prop_keys = None
         self.lbl = None  # reference to label layer
         self.img = None
         self.prop_combobox = QComboBox()
@@ -64,9 +67,12 @@ class FilterByWidget(QWidget):
         self.main_layout = QVBoxLayout()
         self.setup_combo_boxes()
         self.setLayout(self.main_layout)
+        # Create the actual filter widget
+        self.filter_widget = PropFilter(viewer=self.viewer)
 
         # Initialise combo boxes
-        self.init_combo_boxes()  # FIXME this does not seem to work...
+        self.init_combo_boxes()
+        self.main_layout.addWidget(self.filter_widget)
 
         # link combo-boxes to changes
         self.viewer.layers.events.inserted.connect(self.on_add_layer)
@@ -85,23 +91,39 @@ class FilterByWidget(QWidget):
         :param index:
         :return:
         """
+        if self.lbl_layer_name is None:
+            return
         if index != -1:
             prop = self.prop_combobox.itemText(index)
-            print("selected prop is:", prop)
-            prop_max = self.prop_table[prop].max()
-            prop_min = self.prop_table[prop].min()
-            print(prop, "minimum is", prop_min)
-            print(prop, "maximum is", prop_max)
-        # TODO next step make slides for min max
+            # Update the prop_filter --> only the property name to filter on
+            self.filter_widget.update_property(prop)
 
     def update_properties(self):
-        # FixME ensure that the img and labels have the same shape
-        if self.img is None:
+        if self.lbl is None:
+            return
+        # Ensure that the img and labels have the same shape for measurements
+        intensity_image = (
+            None  # to use to measure (ensures same lbl & img shape)
+        )
+        if (
+            self.lbl.shape != self.img.shape
+            and self.lbl.shape != self.img.shape[:-1]
+        ):
+            intensity_image = None
             props = self.props_binary.copy()
-            print("image is none - props=", props)
+            # update info label about shape matching
+            self.shape_match.setText("Label & Image shapes do not match.")
+            self.shape_match.setToolTip(
+                f"Label shape = ({self.lbl.shape}); "
+                f"Image shape = ({self.img.shape})"
+            )
         else:
+            intensity_image = self.img
             props = self.props_intensity.copy()
-            print("image is existing - props=", props)
+            # update the info label about shape matching
+            self.shape_match.setText("")
+            self.shape_match.setToolTip("")
+
         # remove some properties for 3D images (no matter if Z or T)
         if self.lbl.ndim > 2:
             props_to_remove = [
@@ -118,7 +140,14 @@ class FilterByWidget(QWidget):
                 props.remove(p)
 
         self.prop_table = regionprops_table(
-            self.lbl, intensity_image=self.img, properties=props
+            self.lbl, intensity_image=intensity_image, properties=props
+        )
+        # Update the prop_filter widget
+        self.filter_widget.update_widget(
+            self.lbl_layer_name,
+            self.viewer.layers[self.lbl_layer_name],
+            self.prop_table,
+            "label",  # at initialisation this is always selected
         )
         self.prop_combobox.clear()
         self.prop_combobox.addItems(self.prop_table.keys())
@@ -131,10 +160,16 @@ class FilterByWidget(QWidget):
         :return:
         """
         if index != -1:
-            layer_name = self.lbl_combobox.itemText(index)
-            print(">> label layer name is now:", layer_name)
-            self.lbl = self.viewer.layers[layer_name].data
+            self.lbl_layer_name = self.lbl_combobox.itemText(index)
+            self.lbl = self.viewer.layers[self.lbl_layer_name].data
             self.update_properties()
+        else:
+            # No labels selected, reset the widget...
+            self.lbl_layer_name = None
+            self.lbl = None
+            self.prop_combobox.clear()
+            self.prop_table = None
+            self.filter_widget.hide_widget()
 
     def on_img_layer_selection(self, index: int):
         """
@@ -145,10 +180,12 @@ class FilterByWidget(QWidget):
         """
         if index != -1:
             layer_name = self.img_combobox.itemText(index)
-            print(">> image layer name is now:", layer_name)
+            self.img_layer_name = layer_name
             self.img = self.viewer.layers[layer_name].data
-            if self.lbl is not None:
-                self.update_properties()
+            self.update_properties()
+        else:
+            self.img_layer_name = None
+            self.img = None
 
     def on_remove_layer(self, event):
         """
@@ -169,7 +206,6 @@ class FilterByWidget(QWidget):
                 if layer_name != self.lbl_layer_name:
                     self.lbl_layer_name = layer_name
 
-            # print('removed layer was a label image')
         elif isinstance(event.value, napari.layers.Image):
             index = self.img_combobox.findText(
                 layer_name, Qt.MatchExactly
@@ -181,10 +217,8 @@ class FilterByWidget(QWidget):
                 layer_name = self.img_combobox.itemText(index)
                 if layer_name != self.img_layer_name:
                     self.img_layer_name = layer_name
-            # print('removed layer was an image')
         else:
             pass
-            # print("wasn't layer of interest")
 
     def on_add_layer(self, event):
         """
@@ -206,7 +240,7 @@ class FilterByWidget(QWidget):
                 self.img_layer_name = layer_name
                 self.img_combobox.setCurrentIndex(0)
         else:
-            print("Layer was added but was not Label or Image")
+            pass
 
     def init_combo_boxes(self):
         # label layer entries
@@ -216,9 +250,7 @@ class FilterByWidget(QWidget):
             if isinstance(layer, napari.layers.Labels)
         ]
         if self.lbl_layer_name is None and len(lbl_names) > 0:
-            print("------ we should be loading the lbl combobox")
-            # FIXME, i probably have to put the combobox to index 0
-            #  (and load the layer data)
+            self.lbl_combobox.addItems(lbl_names)
             self.lbl_layer_name = lbl_names[0]
             index = self.lbl_combobox.findText(
                 self.lbl_layer_name, Qt.MatchExactly
@@ -231,11 +263,19 @@ class FilterByWidget(QWidget):
             if isinstance(layer, napari.layers.Image)
         ]
         if self.img_layer_name is None and len(img_names) > 0:
+            self.img_combobox.addItems(img_names)
             self.img_layer_name = img_names[0]
             index = self.img_combobox.findText(
                 self.img_layer_name, Qt.MatchExactly
             )
             self.img_combobox.setCurrentIndex(index)
+        # Set the image layer data class variable
+        if self.img_layer_name is not None:
+            self.img = self.viewer.layers[self.img_combobox.itemText(0)].data
+        # Set the label layer data class variable and load measurements
+        if self.lbl_layer_name is not None:
+            self.lbl = self.viewer.layers[self.lbl_combobox.itemText(0)].data
+            self.update_properties()
 
     def setup_combo_boxes(self):
         # Label selection entry
@@ -265,4 +305,5 @@ class FilterByWidget(QWidget):
         prop_widget.setLayout(prop_layout)
         self.main_layout.addWidget(lbl_widget)
         self.main_layout.addWidget(img_widget)
+        self.main_layout.addWidget(self.shape_match)
         self.main_layout.addWidget(prop_widget)
