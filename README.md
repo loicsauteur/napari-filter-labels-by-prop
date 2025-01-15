@@ -33,6 +33,10 @@ To install latest development version :
 
     pip install git+https://github.com/loicsauteur/napari-filter-labels-by-prop.git
 
+<!--
+Install Test dependencies
+    `pip install -e ".[testing]"`
+-->
 
 ## Contributing
 

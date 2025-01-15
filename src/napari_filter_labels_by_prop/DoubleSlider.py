@@ -51,6 +51,22 @@ class DoubleSlider(QSlider):
         self._max_value = value
         self.setValue(self.value())
 
+    def setRange(self, _min: int, _max: int):
+        if _min == _max:
+            _min = _min - 0.1
+            _max = _max + 0.1
+        # avoid having the max at 0 (avoiding 0 divisions)
+        if _max == 0:
+            _max = _max + 0.1
+        if _min > _max:
+            raise ValueError(
+                "Minimum limit cannot be higher than maximum limit"
+            )
+        self._min_value = _min
+        self._max_value = _max
+        self.setMinimum(_min)
+        self.setMaximum(_max)
+
     def minimum(self):
         return self._min_value
 

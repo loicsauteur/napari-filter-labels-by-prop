@@ -159,9 +159,19 @@ class FilterByWidget(QWidget):
         :param index:
         :return:
         """
+        # reset the lbl_combobox style sheet
+        self.lbl_combobox.setStyleSheet(self.img_combobox.styleSheet())
+        self.lbl_combobox.setToolTip("")
         if index != -1:
             self.lbl_layer_name = self.lbl_combobox.itemText(index)
             self.lbl = self.viewer.layers[self.lbl_layer_name].data
+            # check if there is any labels there...
+            if self.lbl.max() < 1:
+                self.lbl = None
+                self.filter_widget.hide_widget(clear=True)
+                self.lbl_combobox.setStyleSheet("color: red")
+                self.lbl_combobox.setToolTip("Label Layer has no labels.")
+                return
             self.update_properties()
         else:
             # No labels selected, reset the widget...
@@ -169,7 +179,7 @@ class FilterByWidget(QWidget):
             self.lbl = None
             self.prop_combobox.clear()
             self.prop_table = None
-            self.filter_widget.hide_widget()
+            self.filter_widget.hide_widget(clear=True)
 
     def on_img_layer_selection(self, index: int):
         """
