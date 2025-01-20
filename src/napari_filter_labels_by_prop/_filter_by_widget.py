@@ -102,14 +102,15 @@ class FilterByWidget(QWidget):
         if self.lbl is None:
             return
         # Ensure that the img and labels have the same shape for measurements
-        intensity_image = (
-            None  # to use to measure (ensures same lbl & img shape)
-        )
-        if (
+        intensity_image = None  # to use to measure
+        if self.img is None:
+            intensity_image = None
+            props = self.props_binary.copy()
+        elif (
             self.lbl.shape != self.img.shape
             and self.lbl.shape != self.img.shape[:-1]
         ):
-            intensity_image = None
+            intensity_image = None  ## fixme this does not work. have to handle the none case differently propbably an else if before
             props = self.props_binary.copy()
             # update info label about shape matching
             self.shape_match.setText("Label & Image shapes do not match.")

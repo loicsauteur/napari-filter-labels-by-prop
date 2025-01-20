@@ -1,4 +1,7 @@
+import time
+
 import napari.layers
+import numpy as np
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as Canvas,
 )
@@ -13,6 +16,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
+import napari_filter_labels_by_prop.utils as uts
 from napari_filter_labels_by_prop.DoubleSlider import DoubleSlider
 
 
@@ -33,6 +37,7 @@ class PropFilter(QWidget):
         self.prop = None
         self.original_colormap = None
         self.color_dict = None
+        self.labels_to_hide = []
 
         # Sliders
         self.min_slider = DoubleSlider()
@@ -68,19 +73,25 @@ class PropFilter(QWidget):
 
         :return:
         """
+        values = self.props_table[self.prop]
+        # show log y-axis if min/max values difference > 100
+        counts, bins = np.histogram(values)
+        do_log = counts.max() - counts.min() > 100
         self.ax.axis("on")
         if self.barplot is None:
             self.barplot = self.ax.hist(
-                x=self.props_table[self.prop],
+                x=values,
                 bins=len(self.props_table["label"]),
                 histtype="stepfilled",
+                log=do_log,
             )
         else:
             self.ax.clear()
             self.barplot = self.ax.hist(
-                x=self.props_table[self.prop],
+                x=values,
                 bins=len(self.props_table["label"]),
                 histtype="stepfilled",
+                log=do_log,
             )
 
         # removes ticks from y-axis
@@ -100,6 +111,9 @@ class PropFilter(QWidget):
             # in case this widget has not been yet setup
             return
         self.prop = prop
+        # print(self.prop, 'min/max=',
+        #      self.props_table[self.prop].min(),
+        #      self.props_table[self.prop].max())
         # Make sure to show the widget
         self.show_widget()
 
@@ -157,7 +171,7 @@ class PropFilter(QWidget):
         # remember the origianl colormap
         self.original_colormap = self.layer.colormap
         # Create custom 'original' LUT / colormap
-        n_labels = len(props_table["label"]) + 1
+        n_labels = self.layer.data.max() + 1
         colormap = label_colormap(num_colors=n_labels)
         color_dict = dict(enumerate(colormap.colors[1:n_labels], start=1))
         color_dict[None] = "transparent"
@@ -194,7 +208,8 @@ class PropFilter(QWidget):
         self.max_label.setHidden(True)
         self.create_btn.setDisabled(True)
         # Reset colormap
-        self.layer.colormap = self.original_colormap
+        if self.layer is not None:
+            self.layer.colormap = self.original_colormap
 
     def show_widget(self):
         """
@@ -234,22 +249,22 @@ class PropFilter(QWidget):
         New colormap is generated each time.
         :return:
         """
-        labels_to_hide = []
+        self.labels_to_hide.clear()
         _min = self.min_slider.value()
         _max = self.max_slider.value()
-        label_values = self.props_table[self.prop]
-        for i in range(len(label_values)):
-            if label_values[i] < _min:
-                labels_to_hide.append(self.props_table["label"][i])
-            if label_values[i] > _max:
-                labels_to_hide.append(self.props_table["label"][i])
+        self.label_values = self.props_table[self.prop]
+        for i in range(len(self.label_values)):
+            if self.label_values[i] < _min:
+                self.labels_to_hide.append(self.props_table["label"][i])
+            if self.label_values[i] > _max:
+                self.labels_to_hide.append(self.props_table["label"][i])
         # Add 'None' and '0' keys to labels_to_hide
-        labels_to_hide.append(None)
-        labels_to_hide.append(0)
+        self.labels_to_hide.append(None)
+        self.labels_to_hide.append(0)
         # Update the color map via modification of the color dict
         for k, v in self.color_dict.items():
             # Put alpha to 0 for label to hide
-            if k in labels_to_hide:
+            if k in self.labels_to_hide:
                 v[3] = 0.0
             # Ensure alpha is 1 for labels to be shown
             else:
@@ -263,6 +278,7 @@ class PropFilter(QWidget):
         Updates on changes on the min_slider on value change.
 
         Will update only the self.min field
+        Will update the color map if there is less than 100 labels.
         :return:
         """
         # Make sure that the value is not bigger than the max slider value
@@ -273,12 +289,15 @@ class PropFilter(QWidget):
             self.min.setText(str(round(self.min_slider.value(), 4)))
         else:
             self.min.setText(str(self.min_slider.value()))
+        if len(self.props_table[self.prop]) < 100:
+            self.update_color_map()
 
     def update_max(self):
         """
         Updates on changes on the max_slider on value change.
 
         Will update only the self.max field.
+        Will update the color map if there is less than 100 labels.
         :return:
         """
         # Make sure taht the value is not smaller than the min slider value
@@ -289,15 +308,32 @@ class PropFilter(QWidget):
             self.max.setText(str(round(self.max_slider.value(), 4)))
         else:
             self.max.setText(str(self.max_slider.value(), 4))
+        if len(self.props_table[self.prop]) < 100:
+            self.update_color_map()
 
-    def create_labels(self):
+    def create_labels(
+        self,
+    ):
         """
         Final function to create new labels layer.
 
+        Parameters are here for future use of function not in class
+        :param lbl: np.ndarry of label layer to modify.
+        :param to_hide: list of int, for labels that should be set to 0
         :return:
         """
-        # TODO create new layer with filtered labels and add it to napari with lbl_name+_1
         print("button was clicked")
+        # TODO / FIXME parallelization would be nice
+        start = time.time()
+        new_lbl = uts.remove_label_objects(
+            self.layer.data, self.labels_to_hide
+        )
+        print("took:", time.time() - start)
+        self.viewer.add_labels(
+            new_lbl,
+            name=self.layer.name + "_1",
+            multiscale=False,
+        )
 
     def setup_sliders(self):
         """

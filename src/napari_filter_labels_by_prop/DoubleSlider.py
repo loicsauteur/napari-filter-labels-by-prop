@@ -6,10 +6,8 @@ class DoubleSlider(QSlider):
     This is copied from: https://gist.github.com/dennis-tra/994a65d6165a328d4eabaadbaedac2cc
 
     Author: dennis-tra
+    Modification by loicsauteur: added setRange function (overwrite)
     """
-
-    # TODO FIXME
-    #   avoid posible 0-divisions
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
