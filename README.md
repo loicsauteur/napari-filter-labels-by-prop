@@ -43,7 +43,7 @@ implemented, and they are more restricted for 3D images.
 3. Add a label image
 4. (optionally) Add a corresponding intensity image with the same (Z)YX shape
 5. In the widget, select the property you want to filter on
-6. Adjust the min max/sliders
+6. Adjust the min/max sliders
 7. When you are ready to create a new label layer click the `Create labels` button in the widget
    - depending on the number of labels and image size, this may take longer -> check the napari activity
 
@@ -53,7 +53,7 @@ When dealing with more than 100 label objects in an image, the filtering view up
 triggered only once you release the sliders.
 
 Another similar plugin you could consider checking out:
-[napari-skimage-regionprops](https://www.napari-hub.org/plugins/napari-skimage-regionprops),
+[napari-skimage-regionprops](https://www.napari-hub.org/plugins/napari-skimage-regionprops).
 
 
 <!--
