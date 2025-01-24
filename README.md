@@ -7,7 +7,7 @@
 [![codecov](https://codecov.io/gh/loicsauteur/napari-filter-labels-by-prop/branch/main/graph/badge.svg)](https://codecov.io/gh/loicsauteur/napari-filter-labels-by-prop)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-filter-labels-by-prop)](https://napari-hub.org/plugins/napari-filter-labels-by-prop)
 
-A simple plugin to filter labels by properites.
+A simple plugin to filter labels by properties.
 
 ----------------------------------
 
@@ -20,13 +20,36 @@ https://github.com/napari/napari-plugin-template#getting-started
 and review the napari docs for plugin developers:
 https://napari.org/stable/plugins/index.html
 -->
+## Description
 
+This plugin provides the possibility to filter segmentation objects by measurements
+(shape and intensity). It is intended for 2D and 3D images.
+
+You can interactively set minimum and maximum thresholds on measurement properties, and
+napari will show a preview of the selection.
+
+Measurements are based on `scikit-image regionprops`. However, not all properties are
+implemented, and is more restricted for 3D images.
+
+## Usage
+
+1. Start napari
+2. Start the plugin from the menu: `Plugins > Filter labels by properties`
+3. Add a label image
+4. (optionally) Add a corresponding intensity image with the same (Z)YX shape
+5. In the widget, select the property you want to filter on
+6. Adjust the min max/sliders
+7. When you are ready to create a new label layer click the `Create labels` button in the widget
+   - depending on the number of labels and image size, this may take longer -> check the napari activity
+
+<!--
+         ## TODO: add feature measurement also to layer.features?
+-->
 ## Installation
 
 You can install `napari-filter-labels-by-prop` via [pip]:
 
     pip install napari-filter-labels-by-prop
-
 
 
 To install latest development version :

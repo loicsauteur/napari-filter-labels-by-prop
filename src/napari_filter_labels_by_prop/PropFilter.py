@@ -1,5 +1,3 @@
-import time
-
 import napari.layers
 import numpy as np
 from matplotlib.backends.backend_qt5agg import (
@@ -224,6 +222,7 @@ class PropFilter(QWidget):
         self.min_label.setHidden(False)
         self.max_label.setHidden(False)
         self.create_btn.setDisabled(False)
+        self.update_histo()
 
     def on_min_slider_release(self):
         """
@@ -322,13 +321,10 @@ class PropFilter(QWidget):
         :param to_hide: list of int, for labels that should be set to 0
         :return:
         """
-        print("button was clicked")
         # TODO / FIXME parallelization would be nice
-        start = time.time()
         new_lbl = uts.remove_label_objects(
             self.layer.data, self.labels_to_hide
         )
-        print("took:", time.time() - start)
         self.viewer.add_labels(
             new_lbl,
             name=self.layer.name + "_1",
