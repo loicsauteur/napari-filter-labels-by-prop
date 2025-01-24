@@ -197,6 +197,8 @@ class FilterByWidget(QWidget):
         else:
             self.img_layer_name = None
             self.img = None
+            self.shape_match.setText("")
+            self.shape_match.setToolTip("")
 
     def on_remove_layer(self, event):
         """

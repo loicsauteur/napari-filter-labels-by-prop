@@ -23,15 +23,20 @@ https://napari.org/stable/plugins/index.html
 ## Description
 
 This plugin provides the possibility to filter segmentation objects by measurements
-(shape and intensity). It is intended for 2D and 3D images.
+(shape and intensity). E.g. you segmented your cells, and you want to exclude segmentation objects
+that have a mean intensity below a certain value.
+
+It is intended for 2D and 3D images.
 
 You can interactively set minimum and maximum thresholds on measurement properties, and
 napari will show a preview of the selection.
 
 Measurements are based on `scikit-image regionprops`. However, not all properties are
-implemented, and is more restricted for 3D images.
+implemented, and they are more restricted for 3D images.
 
-## Usage
+## Usage: Quick start
+
+![](https://github.com/loicsauteur/napari-filter-labels-by-prop/blob/main/resources/preview_filter_labels.gif)
 
 1. Start napari
 2. Start the plugin from the menu: `Plugins > Filter labels by properties`
@@ -41,6 +46,15 @@ implemented, and is more restricted for 3D images.
 6. Adjust the min max/sliders
 7. When you are ready to create a new label layer click the `Create labels` button in the widget
    - depending on the number of labels and image size, this may take longer -> check the napari activity
+
+### Usage notes:
+
+When dealing with more than 100 label objects in an image, the filtering view update is
+triggered only once you release the sliders.
+
+Another similar plugin you could consider checking out:
+[napari-skimage-regionprops](https://www.napari-hub.org/plugins/napari-skimage-regionprops),
+
 
 <!--
          ## TODO: add feature measurement also to layer.features?
