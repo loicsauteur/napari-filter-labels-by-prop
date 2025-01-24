@@ -29,7 +29,7 @@ dependencies = [
     "magicgui",
     "qtpy",
     "scikit-image",
-    "matplotlib==3.10.0"
+    "matplotlib"
 ]
 
 [project.optional-dependencies]
