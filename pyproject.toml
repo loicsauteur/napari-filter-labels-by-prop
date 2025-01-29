@@ -28,7 +28,7 @@ dependencies = [
     "numpy",
     "magicgui",
     "qtpy",
-    "scikit-image>=0.23.1",
+    "scikit-image==0.22.0",
     "matplotlib"
 ]
 

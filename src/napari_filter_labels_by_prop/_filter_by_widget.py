@@ -53,7 +53,7 @@ class FilterByWidget(QWidget):
             "intensity_max",
             "intensity_mean",
             "intensity_min",
-            "intensity_std",
+            # "intensity_std",
             "perimeter",
             "orientation",
             "solidity",
