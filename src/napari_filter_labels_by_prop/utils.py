@@ -11,6 +11,7 @@ def remove_label_objects(
 ) -> np.ndarray:
     """
     Function to remove label items from image.
+    Labels to remove are set to 0 one at a time.
 
     :param img: label image
     :param labels: List of label to remove. Usually contains None & 0
@@ -19,14 +20,92 @@ def remove_label_objects(
     """
     # Todo find a way to invert labels to remove,
     #  ie. when there is more than total/2
+    #   I dont think multiprocessing is possible,
+    #   since i need the keep working on modified arrays
     copy = np.ndarray.copy(img)
+    # Use process for iteration to show progress in napari activity
+    # start = time.time()
     for label in progress(labels):
-
         if label is not None and label != 0:
             # find indeces where equal label
             a = copy == label
             # set image where indeces true to 0
             copy[a] = 0
+    # print('time single process =', time.time() - start)
+
+    # TODO remove: comparing to multiprocessing options
+    # start = time.time()
+    # result = remove_indices2(img, labels)
+    # print('time multiprocess =', time.time() - start)
+    return copy
+
+
+def find_indices(label, img):
+    """
+    Function to find indices in image that correspond to a label.
+
+    :param label: int label of interest
+    :param img: image
+    :return: boolean array of same size as image (True where == label)
+    """
+    indices = img == label
+    return indices
+
+
+def remove_indices(img: np.ndarray, labels: List[int]):
+    """
+    Multiprocessing for removing labels.
+    Parallelise creation of index arrays, where True for a given label.
+    Stacks the labels, then projects them, for setting the label indices to 0.
+
+    Problem: large images leads to out of memory problems.
+
+    :param img: label image
+    :param labels: list of labels to remove
+    :return: copy of label image with desired labels removed
+    """
+    copy = np.ndarray.copy(img)
+    labels.remove(None)
+    labels.remove(0)
+    # Fixme if only one label, special case
+
+    with multiprocessing.Pool() as pool:
+        result = pool.map(partial(find_indices, img=copy), labels)
+    # get the result as a stack of images
+    result = np.asarray(result)
+    # Max Project it, i.e. single image of booleans for where labels of interest are
+    result = np.max(result, axis=0)
+    # Set the positions to 0
+    copy[result] = 0
+    return copy
+
+
+def remove_indices2(img: np.ndarray, labels: List[int]):
+    """
+    Multiprocessing modification of the function above.
+    Idea is to split the list of labels into sub-chunks for multi-processing.
+
+    Problem: takes longer than single-process.
+
+    :param img: label image
+    :param labels: list of labels to remove
+    :return: copy of label image with desired labels removed
+    """
+    copy = np.ndarray.copy(img)
+    labels.remove(0)
+    labels.remove(None)
+    chunk_size = multiprocessing.cpu_count()
+    list_of_labels = np.array_split(
+        labels, len(labels) // chunk_size + (len(labels) % chunk_size != 0)
+    )
+    # print("list_of_labels:", list_of_labels)
+
+    for chunk in progress(list_of_labels):
+        with multiprocessing.Pool() as pool:
+            result = pool.map(partial(find_indices, img=copy), chunk)
+        result = np.asarray(result)
+        result = np.max(result, axis=0)
+        copy[result] = 0
     return copy
 
 

@@ -48,5 +48,26 @@ def test_remove_label_objects():
     )
 
 
+def test_find_indices():
+    pass
+
+
+def test_remove_indices():
+    img = [[1, 0, 0, 0, 0], [0, 2, 2, 0, 0], [0, 3, 3, 3, 0], [5, 5, 5, 5, 5]]
+    img = np.asarray(img)
+    # Labels to remove
+    labels = [None, 0, 2, 3]
+    expected = [
+        [1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [5, 5, 5, 5, 5],
+    ]
+    expected = np.asarray(expected)
+    r = uts.remove_indices(img, labels)
+    nt.assert_array_equal(expected, r, err_msg="Removing labels failed.")
+
+
 # if __name__ == "__main__":
 # test_remove_label_objects()
+# test_remove_indices()
