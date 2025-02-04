@@ -27,9 +27,9 @@ def remove_label_objects(
     # start = time.time()
     for label in progress(labels):
         if label is not None and label != 0:
-            # find indeces where equal label
+            # find indices where equal label
             a = copy == label
-            # set image where indeces true to 0
+            # set image where indices True to 0
             copy[a] = 0
     # print('time single process =', time.time() - start)
 
@@ -107,6 +107,37 @@ def remove_indices2(img: np.ndarray, labels: List[int]):
         result = np.max(result, axis=0)
         copy[result] = 0
     return copy
+
+
+def check_skimage_version(
+    major: int = 0, minor: int = 23, micro: int = 1
+) -> bool:
+    """
+    Check if the installed skimage version is bigger than major.minor.micro
+    Default minimal skimage version = 0.23.1
+    :param major:
+    :param minor:
+    :param micro:
+    :return: boolean
+    """
+    import skimage
+
+    v = skimage.__version__.split(".")
+    if int(v[0]) > major:
+        return True
+    elif int(v[0]) < major:
+        return False
+    else:
+        if int(v[1]) > minor:
+            return True
+        elif int(v[1]) < minor:
+            return False
+        else:
+            try:
+                v3 = int(v[2])
+            except ValueError:
+                return False
+            return v3 > micro
 
 
 def remove_objects(

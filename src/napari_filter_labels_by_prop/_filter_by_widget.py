@@ -9,6 +9,7 @@ from qtpy.QtWidgets import (
 )
 from skimage.measure import regionprops_table
 
+import napari_filter_labels_by_prop.utils as uts
 from napari_filter_labels_by_prop.PropFilter import PropFilter
 
 
@@ -53,11 +54,13 @@ class FilterByWidget(QWidget):
             "intensity_max",
             "intensity_mean",
             "intensity_min",
-            # "intensity_std",
             "perimeter",
             "orientation",
             "solidity",
         ]
+        # Add intensity_std if skimage is bigger than 0.23.1
+        if uts.check_skimage_version():
+            self.props_intensity.append("intensity_std")
         self.prop_table = None
         self.lbl = None  # reference to label layer
         self.img = None
