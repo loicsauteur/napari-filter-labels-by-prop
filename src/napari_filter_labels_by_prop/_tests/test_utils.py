@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.testing as nt
 import pytest
+from skimage.measure import label
 
 import napari_filter_labels_by_prop.utils as uts
 
@@ -35,7 +36,7 @@ def test_remove_labels():
             [0, 0, 0, 0, 0],
         ],
     ]
-    expected = np.asarray(expected)
+    expected = label(np.asarray(expected))
     labels_to_remove = {
         1: 1,
         2: 0,

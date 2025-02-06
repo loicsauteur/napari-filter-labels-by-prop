@@ -2,6 +2,7 @@ from typing import Dict, List
 
 import numpy as np
 from napari.utils import progress
+from skimage.measure import label
 from skimage.util import map_array
 
 
@@ -19,7 +20,11 @@ def remove_labels(img: np.ndarray, label_map: Dict[int, int]) -> np.ndarray:
     """
     in_vals = np.array(list(label_map.keys()), dtype=int)
     out_vals = np.array(list(label_map.values()), dtype=int)
-    return map_array(input_arr=img, input_vals=in_vals, output_vals=out_vals)
+    new_labels = map_array(
+        input_arr=img, input_vals=in_vals, output_vals=out_vals
+    )
+    new_labels = label(new_labels)
+    return new_labels
 
 
 def remove_label_objects(
@@ -45,10 +50,10 @@ def remove_label_objects(
     copy = np.ndarray.copy(img)
     # Use process for iteration to show progress in napari activity
     # start = time.time()
-    for label in progress(labels):
-        if label is not None and label != 0:
+    for _label in progress(labels):
+        if _label is not None and _label != 0:
             # find indices where equal label
-            a = copy == label
+            a = copy == _label
             # set image where indices True to 0
             copy[a] = 0
     # print('time single process =', time.time() - start)

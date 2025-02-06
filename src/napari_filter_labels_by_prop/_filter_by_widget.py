@@ -62,7 +62,7 @@ class FilterByWidget(QWidget):
         if uts.check_skimage_version():
             self.props_intensity.append("intensity_std")
         self.prop_table = None
-        self.lbl = None  # reference to label layer
+        self.lbl = None  # reference to label layer data
         self.img = None
         self.prop_combobox = QComboBox()
 
@@ -118,8 +118,8 @@ class FilterByWidget(QWidget):
             # update info label about shape matching
             self.shape_match.setText("Label & Image shapes do not match.")
             self.shape_match.setToolTip(
-                f"Label shape = ({self.lbl.shape}); "
-                f"Image shape = ({self.img.shape})"
+                f"Label shape = {self.lbl.shape}; "
+                f"Image shape = {self.img.shape}"
             )
         else:
             intensity_image = self.img
@@ -155,6 +155,36 @@ class FilterByWidget(QWidget):
         )
         self.prop_combobox.clear()
         self.prop_combobox.addItems(self.prop_table.keys())
+        # Add the properties to the labels layer features data
+        self.add_layer_properties()
+
+    def add_layer_properties(self):
+        """
+        Create a set of measurements added to the label layer properties.
+
+        This will show the measurements at the bottom of the viewer.
+        The way this function creates the property dictionary, allows for
+        having label images where not every label is present in the image.
+
+        Note: as far as I have seen, the labels layer properties and
+        features fields are the same...
+        :return:
+        """
+        # The properties are a dictionary with str measurement,
+        # and with value = array of length n (max) labels + 0-label
+        features = {}
+        label_max = self.prop_table["label"].max()
+        for k, v in self.prop_table.items():
+            # skipp the 'label' feature
+            if k == "label":
+                continue
+            # Per measurement create a dict entry, including label "0"
+            features[k] = ["none"] * (label_max + 1)
+            # Assign the proper value to the features values array
+            for i, label in enumerate(self.prop_table["label"]):
+                features[k][label] = v[i]
+        # Add the features to the properties
+        self.viewer.layers[self.lbl_layer_name].properties = features
 
     def on_lbl_layer_selection(self, index: int):
         """
