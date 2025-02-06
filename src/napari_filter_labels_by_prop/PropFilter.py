@@ -35,7 +35,8 @@ class PropFilter(QWidget):
         self.prop = None
         self.original_colormap = None
         self.color_dict = None
-        self.labels_to_hide = []
+        # Dictionary for labels with value: 0 for hidden or label # for shown
+        self.labels_to_hide_dict = {}
 
         # Sliders
         self.min_slider = DoubleSlider()
@@ -92,7 +93,7 @@ class PropFilter(QWidget):
                 log=do_log,
             )
 
-        # removes ticks from y-axis
+        # Remove ticks from y-axis
         self.ax.set_yticks([])
         # update the canvas
         self.histo_canvas.draw()
@@ -248,24 +249,24 @@ class PropFilter(QWidget):
         New colormap is generated each time.
         :return:
         """
-        self.labels_to_hide.clear()
+        self.labels_to_hide_dict.clear()
         _min = self.min_slider.value()
         _max = self.max_slider.value()
-        self.label_values = self.props_table[self.prop]
-        for i in range(len(self.label_values)):
-            if self.label_values[i] < _min:
-                self.labels_to_hide.append(self.props_table["label"][i])
-            if self.label_values[i] > _max:
-                self.labels_to_hide.append(self.props_table["label"][i])
-        # Add 'None' and '0' keys to labels_to_hide
-        self.labels_to_hide.append(None)
-        self.labels_to_hide.append(0)
-        # Update the color map via modification of the color dict
+        label_values = self.props_table[self.prop]
+        labels = self.props_table["label"]
+        for i in range(len(label_values)):
+            if label_values[i] < _min or label_values[i] > _max:
+                self.labels_to_hide_dict[labels[i]] = 0
+            else:
+                self.labels_to_hide_dict[labels[i]] = labels[i]
+
+        # Ignore the color_dict 'None' and '0' keys
         for k, v in self.color_dict.items():
-            # Put alpha to 0 for label to hide
-            if k in self.labels_to_hide:
+            # skip color_dict labels that do not exist in the label image
+            if k not in self.labels_to_hide_dict:
+                continue
+            if self.labels_to_hide_dict[k] == 0:
                 v[3] = 0.0
-            # Ensure alpha is 1 for labels to be shown
             else:
                 v[3] = 1.0
         # Create and apply the colormap
@@ -299,7 +300,7 @@ class PropFilter(QWidget):
         Will update the color map if there is less than 100 labels.
         :return:
         """
-        # Make sure taht the value is not smaller than the min slider value
+        # Make sure that the value is not smaller than the min slider value
         if self.max_slider.value() < self.min_slider.value():
             self.max_slider.setValue(self.min_slider.value())
         _max = self.max_slider.value()
@@ -310,23 +311,19 @@ class PropFilter(QWidget):
         if len(self.props_table[self.prop]) < 100:
             self.update_color_map()
 
-    def create_labels(
-        self,
-    ):
+    def create_labels(self):
         """
         Final function to create new labels layer.
 
-        Parameters are here for future use of function not in class
-        :param lbl: np.ndarry of label layer to modify.
-        :param to_hide: list of int, for labels that should be set to 0
         :return:
         """
-        # TODO / FIXME parallelization would be nice
-        new_lbl = uts.remove_label_objects(
-            self.layer.data, self.labels_to_hide
+        # Create new label image
+        new_labels = uts.remove_labels(
+            img=self.layer.data, label_map=self.labels_to_hide_dict
         )
+        # Add it to the viewer
         self.viewer.add_labels(
-            new_lbl,
+            new_labels,
             name=self.layer.name + "_1",
             multiscale=False,
         )
