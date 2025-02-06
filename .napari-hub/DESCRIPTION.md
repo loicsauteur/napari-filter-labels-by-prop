@@ -28,7 +28,7 @@ implemented, and they are more restricted for 3D images.
 
 ## Usage: Quick start
 
-![](https://github.com/loicsauteur/napari-filter-labels-by-prop/blob/main/resources/preview_filter_labels.gif)
+![](https://github.com/loicsauteur/napari-filter-labels-by-prop/raw/main/resources/preview_filter_labels.gif)
 
 1. Start napari
 2. Start the plugin from the menu: `Plugins > Filter labels by properties`
@@ -37,7 +37,6 @@ implemented, and they are more restricted for 3D images.
 5. In the widget, select the property you want to filter on
 6. Adjust the min/max sliders
 7. When you are ready to create a new label layer click the `Create labels` button in the widget
-   - depending on the number of labels and image size, this may take longer -> check the napari activity
 
 ### Usage notes:
 
