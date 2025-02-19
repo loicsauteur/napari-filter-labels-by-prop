@@ -7,7 +7,9 @@ from matplotlib.figure import Figure
 from napari.utils.colormaps import DirectLabelColormap, label_colormap
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
+    QCheckBox,
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QPushButton,
     QVBoxLayout,
@@ -37,6 +39,11 @@ class PropFilter(QWidget):
         self.color_dict = None
         # Dictionary for labels with value: 0 for hidden or label # for shown
         self.labels_to_hide_dict = {}
+        self.relabel_ckb = QCheckBox("")
+        relabel_tip = (
+            "Re-labels the objects, instead of keeping the same label IDs."
+        )
+        self.relabel_ckb.setToolTip(relabel_tip)
 
         # Sliders
         self.min_slider = DoubleSlider()
@@ -62,8 +69,17 @@ class PropFilter(QWidget):
         self.layout.addWidget(self.histo_canvas, Qt.AlignHCenter)
         # 2) add sliders for adjusting min and max values
         self.setup_sliders()
-        # 3) add create new laybel layer button
-        self.layout.addWidget(self.create_btn, Qt.AlignHCenter)
+        # 3) add create new label layer button and checkbox for optional re-labelling
+        create_widget = QWidget()
+        create_widget.setLayout(QHBoxLayout())
+        create_widget.layout().addWidget(self.create_btn)
+        # Add a stretch, to bundle the Relabel-text and checkbox to the right
+        create_widget.layout().addStretch()
+        relabel_label = QLabel("Relabel")
+        relabel_label.setToolTip(relabel_tip)
+        create_widget.layout().addWidget(relabel_label)
+        create_widget.layout().addWidget(self.relabel_ckb)
+        self.layout.addWidget(create_widget)
         self.setLayout(self.layout)
 
     def update_histo(self):
@@ -319,7 +335,9 @@ class PropFilter(QWidget):
         """
         # Create new label image
         new_labels = uts.remove_labels(
-            img=self.layer.data, label_map=self.labels_to_hide_dict
+            img=self.layer.data,
+            label_map=self.labels_to_hide_dict,
+            relabel=self.relabel_ckb.isChecked(),
         )
         # Add it to the viewer
         self.viewer.add_labels(

@@ -6,7 +6,9 @@ from skimage.measure import label
 from skimage.util import map_array
 
 
-def remove_labels(img: np.ndarray, label_map: Dict[int, int]) -> np.ndarray:
+def remove_labels(
+    img: np.ndarray, label_map: Dict[int, int], relabel: bool = False
+) -> np.ndarray:
     """
     Returns a new label image wih label removed.
 
@@ -16,6 +18,7 @@ def remove_labels(img: np.ndarray, label_map: Dict[int, int]) -> np.ndarray:
     the values (e.g. same label value for labels to keep, or 0 for the ones to remove).
     :param img: label image
     :param label_map: dict of {label: [label or 0]}
+    :param relabel: whether to relabel the new image or not. Default is False.
     :return: new label image with labels removed
     """
     in_vals = np.array(list(label_map.keys()), dtype=int)
@@ -23,7 +26,8 @@ def remove_labels(img: np.ndarray, label_map: Dict[int, int]) -> np.ndarray:
     new_labels = map_array(
         input_arr=img, input_vals=in_vals, output_vals=out_vals
     )
-    new_labels = label(new_labels)
+    if relabel:
+        new_labels = label(new_labels)
     return new_labels
 
 
