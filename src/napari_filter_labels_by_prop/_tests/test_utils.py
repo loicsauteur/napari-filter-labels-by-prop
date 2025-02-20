@@ -1,7 +1,8 @@
 import numpy as np
 import numpy.testing as nt
 import pytest
-from skimage.measure import label
+from skimage.measure import label, regionprops, regionprops_table
+from skimage.morphology import ball, disk
 
 import napari_filter_labels_by_prop.utils as uts
 
@@ -36,6 +37,20 @@ def test_remove_labels():
             [0, 0, 0, 0, 0],
         ],
     ]
+    expected_keep_labels = [
+        [
+            [1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 5],
+            [0, 0, 0, 0, 5],
+            [0, 0, 0, 0, 5],
+        ],
+        [
+            [1, 0, 0, 3, 5],
+            [1, 0, 0, 3, 5],
+            [0, 0, 0, 0, 5],
+            [0, 0, 0, 0, 0],
+        ],
+    ]
     expected = label(np.asarray(expected))
     labels_to_remove = {
         1: 1,
@@ -44,16 +59,22 @@ def test_remove_labels():
         4: 0,
         5: 5,
     }
-    result = uts.remove_labels(array, labels_to_remove)
+    result = uts.remove_labels(array, labels_to_remove, relabel=True)
     # Check that the result is as expected
     nt.assert_array_equal(
         result,
         expected,
-        err_msg="Error testing removing labels with map_array.",
+        err_msg="Error testing removing labels with map_array & relabelling.",
     )
     # Check that the output is not the same as the input
     with nt.assert_raises(AssertionError):
         nt.assert_array_equal(array, result)
+    # Check with the (default) relabel=False option
+    nt.assert_array_equal(
+        uts.remove_labels(array, labels_to_remove),
+        expected_keep_labels,
+        err_msg="Error in testing removing labels with map_array & keeping label IDs",
+    )
 
 
 @pytest.mark.skip(reason="Deprecated")
@@ -121,6 +142,30 @@ def test_remove_indices():
     expected = np.asarray(expected)
     r = uts.remove_indices(img, labels)
     nt.assert_array_equal(expected, r, err_msg="Removing labels failed.")
+
+
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+def test_projected_extra_props():
+    radius = 10
+    sphere = ball(radius)
+    disk_props = regionprops(disk(radius))
+    expected_perimeter = disk_props[0].perimeter
+    expected_hull = disk_props[0].area_convex
+
+    table = regionprops_table(
+        sphere,
+        extra_properties=(
+            uts.projected_circularity,
+            uts.projected_perimeter,
+            uts.projected_convex_area,
+        ),
+    )
+
+    nt.assert_array_almost_equal(
+        table["projected_circularity"], [0.9], decimal=1
+    )
+    nt.assert_array_equal(table["projected_perimeter"], [expected_perimeter])
+    nt.assert_array_equal(table["projected_convex_area"], [expected_hull])
 
 
 # if __name__ == "__main__":

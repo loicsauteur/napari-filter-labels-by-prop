@@ -1,6 +1,7 @@
 import napari.layers
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -12,8 +13,20 @@ from skimage.measure import regionprops_table
 import napari_filter_labels_by_prop.utils as uts
 from napari_filter_labels_by_prop.PropFilter import PropFilter
 
+# TODO add 'experimental' projected region props (tickbox, only available for >3D)
+
 
 class FilterByWidget(QWidget):
+    """
+    The base of this widget.
+
+    Sets up
+    - the label and image layer selections,
+    - populates the measurement drop-box, and
+    - initialises the actual PropFilter widget (separate class containing histogram
+      with sliders and create button).
+
+    """
 
     def __init__(self, viewer: "napari.viewer.Viewer"):
         super().__init__()
@@ -25,6 +38,7 @@ class FilterByWidget(QWidget):
         self.lbl_combobox = QComboBox()
         self.img_combobox = QComboBox()
         self.shape_match = QLabel("")
+        self.projected_props_ckb = QCheckBox("")
         self.shape_match.setStyleSheet("color: red")
         self.props_binary = [
             "label",
@@ -87,6 +101,8 @@ class FilterByWidget(QWidget):
             self.on_img_layer_selection
         )
         self.prop_combobox.currentIndexChanged.connect(self.on_prop_selection)
+        # Connect the projected props checkbox
+        self.projected_props_ckb.stateChanged.connect(self.update_properties)
 
     def on_prop_selection(self, index: int):
         """
@@ -113,7 +129,7 @@ class FilterByWidget(QWidget):
             self.lbl.shape != self.img.shape
             and self.lbl.shape != self.img.shape[:-1]
         ):
-            intensity_image = None  ## fixme this does not work. have to handle the none case differently propbably an else if before
+            intensity_image = None
             props = self.props_binary.copy()
             # update info label about shape matching
             self.shape_match.setText("Label & Image shapes do not match.")
@@ -127,6 +143,9 @@ class FilterByWidget(QWidget):
             # update the info label about shape matching
             self.shape_match.setText("")
             self.shape_match.setToolTip("")
+
+        # Define extra properties
+        extra_props = None
 
         # remove some properties for 3D images (no matter if Z or T)
         if self.lbl.ndim > 2:
@@ -142,9 +161,19 @@ class FilterByWidget(QWidget):
             ]
             for p in props_to_remove:
                 props.remove(p)
+            # If >3D label image and projected_props checked
+            if self.projected_props_ckb.isChecked():
+                extra_props = (
+                    uts.projected_circularity,
+                    uts.projected_perimeter,
+                    uts.projected_convex_area,
+                )
 
         self.prop_table = regionprops_table(
-            self.lbl, intensity_image=intensity_image, properties=props
+            self.lbl,
+            intensity_image=intensity_image,
+            properties=props,
+            extra_properties=extra_props,
         )
         # Update the prop_filter widget
         self.filter_widget.update_widget(
@@ -338,6 +367,18 @@ class FilterByWidget(QWidget):
         img_title.setToolTip("Choose an image layer.")
         img_layout.addWidget(img_title)
         img_layout.addWidget(self.img_combobox)
+        # Checkbox for 3D projected properties
+        project_widget = QWidget()
+        project_layout = QHBoxLayout()
+        project_title = QLabel("Measure projected shape properties")
+        project_tip = "Measure shape properties for projected 3D labels?"
+        project_title.setToolTip(project_tip)
+        self.projected_props_ckb.setToolTip(
+            "Measures projected circularity, perimeter and convex hull area"
+        )
+        self.projected_props_ckb.setChecked(True)
+        project_layout.addWidget(project_title)
+        project_layout.addWidget(self.projected_props_ckb)
         # Measurement/property selection entry
         prop_widget = QWidget()
         prop_layout = QHBoxLayout()
@@ -349,7 +390,9 @@ class FilterByWidget(QWidget):
         lbl_widget.setLayout(lbl_layout)
         img_widget.setLayout(img_layout)
         prop_widget.setLayout(prop_layout)
+        project_widget.setLayout(project_layout)
         self.main_layout.addWidget(lbl_widget)
         self.main_layout.addWidget(img_widget)
         self.main_layout.addWidget(self.shape_match)
+        self.main_layout.addWidget(project_widget)
         self.main_layout.addWidget(prop_widget)

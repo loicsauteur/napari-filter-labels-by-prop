@@ -19,12 +19,15 @@ from qtpy.QtWidgets import (
 import napari_filter_labels_by_prop.utils as uts
 from napari_filter_labels_by_prop.DoubleSlider import DoubleSlider
 
+# TODO add 'experimental' projected region props (tickbox, only available for >3D)
+
 
 class PropFilter(QWidget):
     """
     That's were the filtering on the properties is done.
 
-    Shows (a histogram of selected property) and slides to filter on the properties
+    Shows (a histogram of selected property) and slides to filter on the properties,
+    along with a button to create a new labels layer.
     """
 
     def __init__(self, viewer: "napari.viewer.Viewer"):
@@ -90,6 +93,9 @@ class PropFilter(QWidget):
         """
         values = self.props_table[self.prop]
         # show log y-axis if min/max values difference > 100
+        print("values min =", values.min(), "values max=", values.max())
+        # for v in values:
+        #    print(v)
         counts, bins = np.histogram(values)
         do_log = counts.max() - counts.min() > 100
         self.ax.axis("on")

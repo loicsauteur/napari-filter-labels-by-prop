@@ -2,7 +2,7 @@ from typing import Dict, List
 
 import numpy as np
 from napari.utils import progress
-from skimage.measure import label
+from skimage.measure import label, regionprops
 from skimage.util import map_array
 
 
@@ -93,3 +93,61 @@ def check_skimage_version(
             except ValueError:
                 return False
             return v3 > micro
+
+
+def projected_circularity(region_mask: np.ndarray) -> float:
+    """
+    Calculate the projected circularity of a region.
+
+    (Using perimeter_crofton as it gives more reasonable circularity values)
+
+    Circularity = 4 * pi * Area / Perimeter^2
+
+    :param region_mask: mask of a region
+    :return: Circularity
+    """
+    img_proj = project_mask(region_mask)
+    props = regionprops(img_proj)
+    circularity = (4 * np.pi * props[0].area) / (
+        props[0].perimeter_crofton ** 2
+    )
+    # if circularity == float('inf'):
+    #    print(f'found circ=inf for area={props[0].area} and perimeter={props[0].perimeter}, number of objects: {len(props)}')
+    #    if props[0].area < 10:
+    #        return 2000.0
+    # if circularity > 1:
+    #    print(
+    #        f'found circ={circularity} for area={props[0].area} and perimeter={props[0].perimeter} perimeter_crofton={props[0].perimeter_crofton}, conv_area={props[0].area_convex}')
+    return circularity
+
+
+def projected_perimeter(region_mask: np.ndarray) -> float:
+    """
+    Calculate the projected perimeter of a region.
+
+    :param region_mask: mask of a region
+    :return: Perimeter
+    """
+    img_proj = project_mask(region_mask)
+    props = regionprops(img_proj)
+    return props[0].perimeter
+
+
+def projected_convex_area(region_mask: np.ndarray) -> int:
+    """
+    Calculate the projected hull area of a region.
+
+    :param region_mask: mask of a region
+    :return: convex hull area
+    """
+    img_proj = project_mask(region_mask)
+    props = regionprops(img_proj)
+    return props[0].area_convex
+
+
+def project_mask(region_mask: np.ndarray) -> np.ndarray:
+    if len(region_mask.shape) != 3:
+        raise ValueError("Input must be a 3D label image.")
+    # Project along the first (Z) axis
+    img_proj = np.max(region_mask, axis=0)
+    return np.asarray(img_proj, dtype=np.uint8)
