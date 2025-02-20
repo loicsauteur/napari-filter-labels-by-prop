@@ -164,9 +164,10 @@ class FilterByWidget(QWidget):
             # If >3D label image and projected_props checked
             if self.projected_props_ckb.isChecked():
                 extra_props = (
+                    uts.projected_area,
+                    uts.projected_convex_area,
                     uts.projected_circularity,
                     uts.projected_perimeter,
-                    uts.projected_convex_area,
                 )
 
         self.prop_table = regionprops_table(

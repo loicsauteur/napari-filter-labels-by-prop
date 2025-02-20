@@ -151,21 +151,39 @@ def test_projected_extra_props():
     disk_props = regionprops(disk(radius))
     expected_perimeter = disk_props[0].perimeter
     expected_hull = disk_props[0].area_convex
+    expected_area = disk_props[0].area
 
     table = regionprops_table(
         sphere,
         extra_properties=(
+            uts.projected_area,
+            uts.projected_convex_area,
             uts.projected_circularity,
             uts.projected_perimeter,
-            uts.projected_convex_area,
         ),
     )
 
     nt.assert_array_almost_equal(
-        table["projected_circularity"], [0.9], decimal=1
+        table["projected_circularity"],
+        [0.9],
+        decimal=1,
+        err_msg="Projected circularity failed",
     )
-    nt.assert_array_equal(table["projected_perimeter"], [expected_perimeter])
-    nt.assert_array_equal(table["projected_convex_area"], [expected_hull])
+    nt.assert_array_equal(
+        table["projected_perimeter"],
+        [expected_perimeter],
+        err_msg="Projected perimeter failed",
+    )
+    nt.assert_array_equal(
+        table["projected_convex_area"],
+        [expected_hull],
+        err_msg="Projected convex area failed",
+    )
+    nt.assert_array_equal(
+        table["projected_area"],
+        [expected_area],
+        err_msg="Projected area failed",
+    )
 
 
 # if __name__ == "__main__":

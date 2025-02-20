@@ -93,9 +93,7 @@ class PropFilter(QWidget):
         """
         values = self.props_table[self.prop]
         # show log y-axis if min/max values difference > 100
-        print("values min =", values.min(), "values max=", values.max())
-        # for v in values:
-        #    print(v)
+        # print("values min =", values.min(), "values max=", values.max())
         counts, bins = np.histogram(values)
         do_log = counts.max() - counts.min() > 100
         self.ax.axis("on")

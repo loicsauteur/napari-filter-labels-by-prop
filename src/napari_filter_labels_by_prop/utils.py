@@ -145,6 +145,18 @@ def projected_convex_area(region_mask: np.ndarray) -> int:
     return props[0].area_convex
 
 
+def projected_area(region_mask: np.ndarray) -> int:
+    """
+    Calculate the projected area of a region
+
+    :param region_mask: mask of a region
+    :return: area
+    """
+    img_proj = project_mask(region_mask)
+    props = regionprops(img_proj)
+    return props[0].area
+
+
 def project_mask(region_mask: np.ndarray) -> np.ndarray:
     if len(region_mask.shape) != 3:
         raise ValueError("Input must be a 3D label image.")
