@@ -1,10 +1,14 @@
 import napari.layers
+import numpy as np
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QDoubleValidator
 from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -12,8 +16,6 @@ from skimage.measure import regionprops_table
 
 import napari_filter_labels_by_prop.utils as uts
 from napari_filter_labels_by_prop.PropFilter import PropFilter
-
-# TODO add 'experimental' projected region props (tickbox, only available for >3D)
 
 
 class FilterByWidget(QWidget):
@@ -27,6 +29,13 @@ class FilterByWidget(QWidget):
       with sliders and create button).
 
     """
+
+    # TODO
+    #  - numeric fields for ZYX each and a button to set on layer,
+    #    and at start up also try to read from layer.
+    #  - tick box to calculate features in cell and cyto masks
+    #    (-> save masks to PropFilter), and when create button is pressed
+    #    also create those masks
 
     def __init__(self, viewer: "napari.viewer.Viewer"):
         super().__init__()
@@ -79,10 +88,18 @@ class FilterByWidget(QWidget):
         self.lbl = None  # reference to label layer data
         self.img = None
         self.prop_combobox = QComboBox()
+        # Image calibration
+        self.voxel_size = (1.0, 1.0, 1.0)
+        self.scale_label = QLabel("Voxel size")
+        self.z_textbox = QLineEdit()
+        self.y_textbox = QLineEdit()
+        self.x_textbox = QLineEdit()
+        self.set_btn = QPushButton("Set")
+        self.set_btn.clicked.connect(self.click_set_btn)
 
         # Create layout
         self.main_layout = QVBoxLayout()
-        self.setup_combo_boxes()
+        self.setup_layout()
         self.setLayout(self.main_layout)
         # Create the actual filter widget
         self.filter_widget = PropFilter(viewer=self.viewer)
@@ -116,6 +133,37 @@ class FilterByWidget(QWidget):
             prop = self.prop_combobox.itemText(index)
             # Update the prop_filter --> only the property name to filter on
             self.filter_widget.update_property(prop)
+
+    def click_set_btn(self):
+        print("Set button was pressed")
+        # set the scale in the layers
+        # 2D
+        if len(self.viewer.layers[self.lbl_layer_name].scale) == 2:
+            self.voxel_size = (
+                float(self.y_textbox.text()),
+                float(self.x_textbox.text()),
+            )
+            self.viewer.layers[self.lbl_layer_name].scale = self.voxel_size
+            if self.img_layer_name is not None:
+                self.viewer.layers[self.img_layer_name].scale = self.voxel_size
+        # 3D
+        elif len(self.viewer.layers[self.lbl_layer_name].scale) == 3:
+            self.voxel_size = (
+                float(self.z_textbox.text()),
+                float(self.y_textbox.text()),
+                float(self.x_textbox.text()),
+            )
+            self.viewer.layers[self.lbl_layer_name].scale = self.voxel_size
+            if self.img_layer_name is not None:
+                self.viewer.layers[self.img_layer_name].scale = self.voxel_size
+        else:
+            raise NotImplementedError(
+                f"Setting the scale for more than "
+                f"{len(self.viewer.layers[self.lbl_layer_name].scale)}D images "
+                f"is not supported"
+            )
+        # Update the properties
+        self.update_properties()
 
     def update_properties(self):
         if self.lbl is None:
@@ -175,18 +223,50 @@ class FilterByWidget(QWidget):
             intensity_image=intensity_image,
             properties=props,
             extra_properties=extra_props,
+            spacing=self.voxel_size,
         )
+        self.calibrate_extra_props()
         # Update the prop_filter widget
         self.filter_widget.update_widget(
-            self.lbl_layer_name,
-            self.viewer.layers[self.lbl_layer_name],
-            self.prop_table,
-            "label",  # at initialisation this is always selected
+            lbl_name=self.lbl_layer_name,
+            layer=self.viewer.layers[self.lbl_layer_name],
+            props_table=self.prop_table,
+            prop="label",  # at initialisation this is always selected
         )
         self.prop_combobox.clear()
         self.prop_combobox.addItems(self.prop_table.keys())
         # Add the properties to the labels layer features data
         self.add_layer_properties()
+
+    def calibrate_extra_props(self):
+        # check that the keys are in the props table
+        from napari_filter_labels_by_prop.utils import (
+            __calibrated_extra_props__,
+        )
+
+        for p in __calibrated_extra_props__:
+            if p not in self.prop_table:
+                return
+        # if x != y size, raise not implemented error
+        if self.voxel_size[-2] != self.voxel_size[-1]:
+            raise NotImplementedError(
+                f"Different XY pixel size is not implemented. Got "
+                f"({self.voxel_size[-2]}, {self.voxel_size[-1]})."
+            )
+        # multiply the values
+        for prop in __calibrated_extra_props__:
+            if "area" in prop:
+                print(prop, "before", self.prop_table[prop])
+                self.prop_table[prop] = (
+                    self.prop_table[prop] * self.voxel_size[-1] ** 2
+                )
+                print(prop, "after", self.prop_table[prop])
+            else:
+                print(prop, "before", self.prop_table[prop])
+                self.prop_table[prop] = (
+                    self.prop_table[prop] * self.voxel_size[-1]
+                )
+                print(prop, "after", self.prop_table[prop])
 
     def add_layer_properties(self):
         """
@@ -216,6 +296,104 @@ class FilterByWidget(QWidget):
         # Add the features to the properties
         self.viewer.layers[self.lbl_layer_name].properties = features
 
+    def check_and_set_scale(
+        self,
+        scale: tuple,
+        overwrite: bool = False,
+        is_img_layer: bool = False,
+    ):
+        """
+        Check the scale read from the image(s).
+
+        If scale is OK, will set the corresponding text-boxes and
+        the voxel-size variable.
+        But it does not set the layer scale, this only happens when the
+        set button is pressed.
+
+        :param scale: tuple of image layer scale
+        :param overwrite: bool whether to overwrite the scale.
+                          If False, it will still overwrite if the image-scale is not
+                          all 1.'s Default is False.
+        :param is_img_layer: whether the trigger comes from the image layer or not.
+                             Default is False.
+        :return:
+        """
+
+        # On label layer change and image_layer(_name) is available
+        if not is_img_layer and self.img_layer_name is not None:
+            # Favor image layer scale
+            img_scale = self.viewer.layers[self.img_layer_name].scale
+            # If label and image layer scales are not the same?
+            if not np.array_equal(img_scale, scale):
+                # Check whether all values are 1,
+                for s in img_scale:
+                    # If not use the image scale for pixel size
+                    if s != 1.0:
+                        scale = img_scale
+                        break
+
+        # Force to read the voxel size, i.e. when new label layer is selected
+        if self.x_textbox.text() == str(np.nan):
+            overwrite = True
+
+        # 2D
+        if len(scale) == 2:
+            # skip if not overwrite and the image scale is all 1. (uncalibrated)
+            if not overwrite and np.array_equal(scale, np.array([1.0, 1.0])):
+                return
+            # disable the z textbox
+            self.z_textbox.setDisabled(True)
+            # set the description
+            self.scale_label.setText("Pixel size")
+            y = float(self.x_textbox.text())
+            x = float(self.y_textbox.text())
+            if not np.array_equal(scale, np.array([y, x])):
+                # update the scale text boxes
+                self.y_textbox.setText(str(scale[0]))
+                self.x_textbox.setText(str(scale[1]))
+                # set the voxel size
+                self.voxel_size = (scale[0], scale[1])
+            # Disable the extra_properties checkbox
+            self.projected_props_ckb.setChecked(
+                False
+            )  # FYI this triggers prop update
+            self.projected_props_ckb.setDisabled(True)
+        # 3D
+        else:
+            # skip if not overwrite and the image scale is all 1. (uncalibrated)
+            if not overwrite and np.array_equal(
+                scale, np.array([1.0, 1.0, 1.0])
+            ):
+                return
+            # enable the z textbox
+            self.z_textbox.setDisabled(False)
+            # set the description
+            self.scale_label.setText("Voxel size")
+            z = float(self.z_textbox.text())
+            y = float(self.x_textbox.text())
+            x = float(self.y_textbox.text())
+            if not np.array_equal(scale, np.array([z, y, x])):
+                # update the scale text boxes
+                self.z_textbox.setText(str(scale[0]))
+                self.y_textbox.setText(str(scale[1]))
+                self.x_textbox.setText(str(scale[2]))
+                # set the voxel size
+                self.voxel_size = (scale[0], scale[1], scale[2])
+            # Enable the extra_properties checkbox
+            self.projected_props_ckb.setDisabled(False)
+
+    def reset_voxel_size(self):
+        """
+        Reset the voxel size and the text boxes.
+
+        Used upon label layer change.
+        :return:
+        """
+        self.voxel_size = (1.0, 1.0, 1.0)
+        self.z_textbox.setText(str(np.nan))
+        self.y_textbox.setText(str(np.nan))
+        self.x_textbox.setText(str(np.nan))
+
     def on_lbl_layer_selection(self, index: int):
         """
         Callback function that "updates stuff"
@@ -227,6 +405,9 @@ class FilterByWidget(QWidget):
         self.lbl_combobox.setStyleSheet(self.img_combobox.styleSheet())
         self.lbl_combobox.setToolTip("")
         if index != -1:
+            # Reset the voxel size
+            self.reset_voxel_size()
+            # Load the layer to class variables
             self.lbl_layer_name = self.lbl_combobox.itemText(index)
             self.lbl = self.viewer.layers[self.lbl_layer_name].data
             # check if there is any labels there...
@@ -236,6 +417,8 @@ class FilterByWidget(QWidget):
                 self.lbl_combobox.setStyleSheet("color: red")
                 self.lbl_combobox.setToolTip("Label Layer has no labels.")
                 return
+            scale = self.viewer.layers[self.lbl_layer_name].scale
+            self.check_and_set_scale(scale=scale)
             self.update_properties()
         else:
             # No labels selected, reset the widget...
@@ -256,6 +439,8 @@ class FilterByWidget(QWidget):
             layer_name = self.img_combobox.itemText(index)
             self.img_layer_name = layer_name
             self.img = self.viewer.layers[layer_name].data
+            scale = self.viewer.layers[layer_name].scale
+            self.check_and_set_scale(scale=scale, is_img_layer=True)
             self.update_properties()
         else:
             self.img_layer_name = None
@@ -351,9 +536,11 @@ class FilterByWidget(QWidget):
         # Set the label layer data class variable and load measurements
         if self.lbl_layer_name is not None:
             self.lbl = self.viewer.layers[self.lbl_combobox.itemText(0)].data
+            scale = self.viewer.layers[self.lbl_combobox.itemText(0)].scale
+            self.check_and_set_scale(scale=scale)
             self.update_properties()
 
-    def setup_combo_boxes(self):
+    def setup_layout(self):
         # Label selection entry
         lbl_widget = QWidget()
         lbl_layout = QHBoxLayout()
@@ -368,6 +555,32 @@ class FilterByWidget(QWidget):
         img_title.setToolTip("Choose an image layer.")
         img_layout.addWidget(img_title)
         img_layout.addWidget(self.img_combobox)
+        # Image calibration entry
+        cal_widget = QWidget()
+        cal_layout = QHBoxLayout()
+        self.z_textbox.setToolTip("Z voxel size")
+        self.z_textbox.setValidator(QDoubleValidator(0.001, 1000.0, 3))
+        self.z_textbox.setText(str(np.nan))
+        self.z_textbox.setMaximumWidth(50)
+        self.y_textbox.setToolTip("Y pixel size")
+        self.y_textbox.setValidator(QDoubleValidator(0.001, 1000.0, 3))
+        self.y_textbox.setText(str(np.nan))
+        self.y_textbox.setMaximumWidth(50)
+        self.x_textbox.setToolTip("X pixel size")
+        self.x_textbox.setValidator(QDoubleValidator(0.001, 1000.0, 3))
+        self.x_textbox.setText(str(np.nan))
+        self.x_textbox.setMaximumWidth(50)
+        self.scale_label.setToolTip(
+            "Allows shape measurements in calibrated units."
+        )
+        self.set_btn.setToolTip(
+            "Set the pixel calibration to the selected layer(s)."
+        )
+        cal_layout.addWidget(self.scale_label)
+        cal_layout.addWidget(self.z_textbox)
+        cal_layout.addWidget(self.y_textbox)
+        cal_layout.addWidget(self.x_textbox)
+        cal_layout.addWidget(self.set_btn)
         # Checkbox for 3D projected properties
         project_widget = QWidget()
         project_layout = QHBoxLayout()
@@ -377,7 +590,7 @@ class FilterByWidget(QWidget):
         self.projected_props_ckb.setToolTip(
             "Measures projected circularity, perimeter and convex hull area"
         )
-        self.projected_props_ckb.setChecked(True)
+        self.projected_props_ckb.setChecked(False)
         project_layout.addWidget(project_title)
         project_layout.addWidget(self.projected_props_ckb)
         # Measurement/property selection entry
@@ -392,8 +605,10 @@ class FilterByWidget(QWidget):
         img_widget.setLayout(img_layout)
         prop_widget.setLayout(prop_layout)
         project_widget.setLayout(project_layout)
+        cal_widget.setLayout(cal_layout)
         self.main_layout.addWidget(lbl_widget)
         self.main_layout.addWidget(img_widget)
         self.main_layout.addWidget(self.shape_match)
+        self.main_layout.addWidget(cal_widget)
         self.main_layout.addWidget(project_widget)
         self.main_layout.addWidget(prop_widget)

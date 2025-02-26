@@ -2,8 +2,15 @@ from typing import Dict, List
 
 import numpy as np
 from napari.utils import progress
-from skimage.measure import label, regionprops
+from skimage.measure import regionprops
+from skimage.segmentation import relabel_sequential
 from skimage.util import map_array
+
+__calibrated_extra_props__ = [
+    "projected_perimeter",
+    "projected_convex_area",
+    "projected_area",
+]
 
 
 def remove_labels(
@@ -18,7 +25,8 @@ def remove_labels(
     the values (e.g. same label value for labels to keep, or 0 for the ones to remove).
     :param img: label image
     :param label_map: dict of {label: [label or 0]}
-    :param relabel: whether to relabel the new image or not. Default is False.
+    :param relabel: whether to relabel the new image or keep the original label ids.
+                    Default is False.
     :return: new label image with labels removed
     """
     in_vals = np.array(list(label_map.keys()), dtype=int)
@@ -27,7 +35,7 @@ def remove_labels(
         input_arr=img, input_vals=in_vals, output_vals=out_vals
     )
     if relabel:
-        new_labels = label(new_labels)
+        new_labels, _, _ = relabel_sequential(new_labels)
     return new_labels
 
 

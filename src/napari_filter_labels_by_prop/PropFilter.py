@@ -348,6 +348,7 @@ class PropFilter(QWidget):
             new_labels,
             name=self.layer.name + "_1",
             multiscale=False,
+            scale=self.layer.scale,
         )
 
     def setup_sliders(self):

@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.testing as nt
 import pytest
-from skimage.measure import label, regionprops, regionprops_table
+from skimage.measure import regionprops, regionprops_table
 from skimage.morphology import ball, disk
 
 import napari_filter_labels_by_prop.utils as uts
@@ -23,17 +23,18 @@ def test_remove_labels():
         ],
     ]
     array = np.asarray(array)
+    # expected when relabelling
     expected = [
         [
             [1, 0, 0, 0, 0],
-            [0, 0, 0, 0, 5],
-            [0, 0, 0, 0, 5],
-            [0, 0, 0, 0, 5],
+            [0, 0, 0, 0, 3],
+            [0, 0, 0, 0, 3],
+            [0, 0, 0, 0, 3],
         ],
         [
-            [1, 0, 0, 3, 5],
-            [1, 0, 0, 3, 5],
-            [0, 0, 0, 0, 5],
+            [1, 0, 0, 2, 3],
+            [1, 0, 0, 2, 3],
+            [0, 0, 0, 0, 3],
             [0, 0, 0, 0, 0],
         ],
     ]
@@ -51,7 +52,7 @@ def test_remove_labels():
             [0, 0, 0, 0, 0],
         ],
     ]
-    expected = label(np.asarray(expected))
+    expected = np.asarray(expected)
     labels_to_remove = {
         1: 1,
         2: 0,
@@ -186,7 +187,7 @@ def test_projected_extra_props():
     )
 
 
-# if __name__ == "__main__":
-# test_remove_label_objects()
+if __name__ == "__main__":
+    test_remove_labels()
 # test_remove_indices()
 # test_remove_labels()
