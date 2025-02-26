@@ -5,11 +5,10 @@ from qtpy.QtGui import QDoubleValidator
 from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QHBoxLayout,
+    QGridLayout,
     QLabel,
     QLineEdit,
     QPushButton,
-    QVBoxLayout,
     QWidget,
 )
 from skimage.measure import regionprops_table
@@ -31,8 +30,7 @@ class FilterByWidget(QWidget):
     """
 
     # TODO
-    #  - numeric fields for ZYX each and a button to set on layer,
-    #    and at start up also try to read from layer.
+    #  - change to grid layout
     #  - tick box to calculate features in cell and cyto masks
     #    (-> save masks to PropFilter), and when create button is pressed
     #    also create those masks
@@ -98,15 +96,15 @@ class FilterByWidget(QWidget):
         self.set_btn.clicked.connect(self.click_set_btn)
 
         # Create layout
-        self.main_layout = QVBoxLayout()
-        self.setup_layout()
+        self.main_layout = QGridLayout()
+        grid_row = self.setup_layout()
         self.setLayout(self.main_layout)
         # Create the actual filter widget
         self.filter_widget = PropFilter(viewer=self.viewer)
 
         # Initialise combo boxes
         self.init_combo_boxes()
-        self.main_layout.addWidget(self.filter_widget)
+        self.main_layout.addWidget(self.filter_widget, grid_row, 0, 1, -1)
 
         # link combo-boxes to changes
         self.viewer.layers.events.inserted.connect(self.on_add_layer)
@@ -540,24 +538,36 @@ class FilterByWidget(QWidget):
             self.check_and_set_scale(scale=scale)
             self.update_properties()
 
-    def setup_layout(self):
+    def setup_layout(self) -> int:
+        """
+        Set up the widget layout.
+
+        Adds label choice, image choice, info about shape miss-match,
+        image calibration setter, projected shape choice, measurement choice.
+
+        Does not add the PropFilter widget, this is added after initialisation.
+        :return: int of next row to add elements to grid-layout
+        """
+        row = 0
         # Label selection entry
-        lbl_widget = QWidget()
-        lbl_layout = QHBoxLayout()
         lbl_title = QLabel("Label")
         lbl_title.setToolTip("Choose a label layer.")
-        lbl_layout.addWidget(lbl_title)
-        lbl_layout.addWidget(self.lbl_combobox)
+        self.main_layout.addWidget(
+            lbl_title, row, 0, alignment=Qt.AlignmentFlag.AlignLeft
+        )
+        self.main_layout.addWidget(self.lbl_combobox, row, 1, 1, -1)
+        row += 1
         # Image selection entry
-        img_widget = QWidget()
-        img_layout = QHBoxLayout()
         img_title = QLabel("Image")
         img_title.setToolTip("Choose an image layer.")
-        img_layout.addWidget(img_title)
-        img_layout.addWidget(self.img_combobox)
+        self.main_layout.addWidget(
+            img_title, row, 0, alignment=Qt.AlignmentFlag.AlignLeft
+        )
+        self.main_layout.addWidget(self.img_combobox, row, 1, 1, -1)
+        row += 1
+        self.main_layout.addWidget(self.shape_match, row, 0, 1, -1)
+        row += 1
         # Image calibration entry
-        cal_widget = QWidget()
-        cal_layout = QHBoxLayout()
         self.z_textbox.setToolTip("Z voxel size")
         self.z_textbox.setValidator(QDoubleValidator(0.001, 1000.0, 3))
         self.z_textbox.setText(str(np.nan))
@@ -576,39 +586,33 @@ class FilterByWidget(QWidget):
         self.set_btn.setToolTip(
             "Set the pixel calibration to the selected layer(s)."
         )
-        cal_layout.addWidget(self.scale_label)
-        cal_layout.addWidget(self.z_textbox)
-        cal_layout.addWidget(self.y_textbox)
-        cal_layout.addWidget(self.x_textbox)
-        cal_layout.addWidget(self.set_btn)
+        self.main_layout.addWidget(
+            self.scale_label, row, 0, alignment=Qt.AlignmentFlag.AlignLeft
+        )
+        self.main_layout.addWidget(self.z_textbox, row, 1)
+        self.main_layout.addWidget(self.y_textbox, row, 2)
+        self.main_layout.addWidget(self.x_textbox, row, 3)
+        row += 1
         # Checkbox for 3D projected properties
-        project_widget = QWidget()
-        project_layout = QHBoxLayout()
         project_title = QLabel("Measure projected shape properties")
-        project_tip = "Measure shape properties for projected 3D labels?"
-        project_title.setToolTip(project_tip)
+        project_title.setToolTip(
+            "Measure shape properties for projected 3D labels?"
+        )
         self.projected_props_ckb.setToolTip(
             "Measures projected circularity, perimeter and convex hull area"
         )
         self.projected_props_ckb.setChecked(False)
-        project_layout.addWidget(project_title)
-        project_layout.addWidget(self.projected_props_ckb)
+        self.main_layout.addWidget(
+            project_title, row, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignLeft
+        )
+        self.main_layout.addWidget(self.projected_props_ckb, row, 3)
+        row += 1
         # Measurement/property selection entry
-        prop_widget = QWidget()
-        prop_layout = QHBoxLayout()
         prop_title = QLabel("Measurement")
         prop_title.setToolTip("Select the measurement to filter on.")
-        prop_layout.addWidget(prop_title)
-        prop_layout.addWidget(self.prop_combobox)
-        # add widgets to the main widget
-        lbl_widget.setLayout(lbl_layout)
-        img_widget.setLayout(img_layout)
-        prop_widget.setLayout(prop_layout)
-        project_widget.setLayout(project_layout)
-        cal_widget.setLayout(cal_layout)
-        self.main_layout.addWidget(lbl_widget)
-        self.main_layout.addWidget(img_widget)
-        self.main_layout.addWidget(self.shape_match)
-        self.main_layout.addWidget(cal_widget)
-        self.main_layout.addWidget(project_widget)
-        self.main_layout.addWidget(prop_widget)
+        self.main_layout.addWidget(
+            prop_title, row, 0, alignment=Qt.AlignmentFlag.AlignLeft
+        )
+        self.main_layout.addWidget(self.prop_combobox, row, 1, 1, -1)
+        row += 1
+        return row
