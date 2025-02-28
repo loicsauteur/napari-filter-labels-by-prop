@@ -1,9 +1,10 @@
-from typing import Dict, List
+from time import time
+from typing import Dict, List, Union
 
 import numpy as np
 from napari.utils import progress
 from skimage.measure import regionprops
-from skimage.segmentation import relabel_sequential
+from skimage.segmentation import expand_labels, relabel_sequential
 from skimage.util import map_array
 
 __calibrated_extra_props__ = [
@@ -119,13 +120,6 @@ def projected_circularity(region_mask: np.ndarray) -> float:
     circularity = (4 * np.pi * props[0].area) / (
         props[0].perimeter_crofton ** 2
     )
-    # if circularity == float('inf'):
-    #    print(f'found circ=inf for area={props[0].area} and perimeter={props[0].perimeter}, number of objects: {len(props)}')
-    #    if props[0].area < 10:
-    #        return 2000.0
-    # if circularity > 1:
-    #    print(
-    #        f'found circ={circularity} for area={props[0].area} and perimeter={props[0].perimeter} perimeter_crofton={props[0].perimeter_crofton}, conv_area={props[0].area_convex}')
     return circularity
 
 
@@ -171,3 +165,119 @@ def project_mask(region_mask: np.ndarray) -> np.ndarray:
     # Project along the first (Z) axis
     img_proj = np.max(region_mask, axis=0)
     return np.asarray(img_proj, dtype=np.uint8)
+
+
+def create_cell_cyto_masks(
+    lbl: np.ndarray, expansion: float, voxel_size: Union[float, tuple] = 1
+) -> (np.ndarray, np.ndarray):
+    """
+    Create cell and cyto masks from the labels.
+
+    Allows expansion for anisotropic data.
+    :param lbl: nuclear label mask
+    :param expansion: desired expansion in microns
+    :param voxel_size: (Z)YX voxel size
+    :return: cell mask, cytoplasm mask
+    """
+    if voxel_size[-1] != voxel_size[-2]:
+        raise ValueError(
+            f"Voxel size in Y and X must be equal. Got: {voxel_size[-2:]}"
+        )
+    # skimage has anisotropic expand labels from v0.23.0 on
+    # (also requires scipy>=1.8, but I don't think this will be a problem)
+    start = time()
+    cells = cell_expansion(lbl, spacing=voxel_size, expansion=expansion)
+    print("Creating cells took:", time() - start)
+    start = time()
+    # create cyto mask
+    cyto = np.subtract(cells, lbl)
+    print("Creating cytoplasm took:", time() - start)
+    return cells, cyto
+
+
+def cell_expansion(
+    label_image: np.ndarray,
+    spacing: Union[float, tuple] = 1,
+    expansion: float = 1,
+) -> np.ndarray:
+    """
+    Basically skimage's expand_labels.
+
+    But since anisotropic expansion is only available since skimage v0.23.0,
+    re-implement it here: copied from:
+    https://github.com/scikit-image/scikit-image/blob/v0.25.1/skimage/segmentation/_expand_labels.py
+    :param label_image:
+    :param spacing: usually a tuple of the voxel-size,
+                    used to calculate the distance map with anisotropy
+    :param expansion: distance in microns (if the spacing tuple is in microns)
+    :return:
+    """
+    if check_skimage_version(0, 22, 9):
+        return expand_labels(label_image, distance=expansion, spacing=spacing)
+    # Re-implementation
+    from scipy.ndimage import distance_transform_edt
+
+    distances, nearest_label_coords = distance_transform_edt(
+        label_image == 0, sampling=spacing, return_indices=True
+    )
+    labels_out = np.zeros_like(label_image)
+    dilate_mask = distances <= expansion
+    # build the coordinates to find the nearest labels,
+    # in contrast to 'cellprofiler' this implementation supports label arrays
+    # of any dimension
+    masked_nearest_label_coords = [
+        dimension_indices[dilate_mask]
+        for dimension_indices in nearest_label_coords
+    ]
+    nearest_labels = label_image[tuple(masked_nearest_label_coords)]
+    labels_out[dilate_mask] = nearest_labels
+    return labels_out
+
+
+def rename_dict_keys(d: dict, prefix: str, exclude: str = "label") -> dict:
+    """
+    Rename the keys of a dictionary with a prefix.
+
+    E.g. 'Intensity' becomes 'Nucleus: Intensity'
+    :param d: dictionary
+    :param prefix: str prefix to use
+    :param exclude: str, single dict key to exclude from renaming
+    :return: dict
+    """
+    return_dict = {}
+    for k, v in d.items():
+        # Add exclude-key without renaming
+        if k == exclude:
+            return_dict[k] = v
+        else:
+            return_dict[f"{prefix}: {k}"] = v
+    return return_dict
+
+
+def merge_dict(dict1: dict, dict2: dict, exclude: str = "label") -> dict:
+    """
+    Merge dict2 into dict1.
+
+    Intended to merge 2 regionprop tables.
+    Allows for exclusion of one key-value pair, i.e. the label entry
+    :param dict1: first dict
+    :param dict2: second dict
+    :param exclude: key from second dict to exclude
+    :return: merged dict
+    """
+    if exclude not in dict1:
+        raise KeyError(
+            f'Expected "{exclude}" in first dictionary, but was not found.'
+        )
+    if exclude not in dict2:
+        raise KeyError(
+            f'Expected "{exclude}" in second dictionary, but was not found.'
+        )
+    # Add key-value pairs to first dict
+    for k, v in dict2.items():
+        if k == exclude:
+            continue
+        if k in dict1:
+            raise KeyError(f"The dictionary already contains the key {k}.")
+        dict1[k] = v
+    return dict1

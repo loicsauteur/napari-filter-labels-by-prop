@@ -19,8 +19,6 @@ from qtpy.QtWidgets import (
 import napari_filter_labels_by_prop.utils as uts
 from napari_filter_labels_by_prop.DoubleSlider import DoubleSlider
 
-# TODO add 'experimental' projected region props (tickbox, only available for >3D)
-
 
 class PropFilter(QWidget):
     """
@@ -40,6 +38,9 @@ class PropFilter(QWidget):
         self.prop = None
         self.original_colormap = None
         self.color_dict = None
+        # Cell and cyto masks created in the filter_by_widget
+        self.cell_img = None
+        self.cyto_img = None
         # Dictionary for labels with value: 0 for hidden or label # for shown
         self.labels_to_hide_dict = {}
         self.relabel_ckb = QCheckBox("")
@@ -84,6 +85,16 @@ class PropFilter(QWidget):
         create_widget.layout().addWidget(self.relabel_ckb)
         self.layout.addWidget(create_widget)
         self.setLayout(self.layout)
+
+    def set_compartment_masks(self, cells: np.ndarray, cyto: np.ndarray):
+        """
+        Setter for cell and cyto mask
+        :param cells: masks for cells
+        :param cyto: masks for cytoplasm
+        :return:
+        """
+        self.cell_img = cells
+        self.cyto_img = cyto
 
     def update_histo(self):
         """
@@ -350,6 +361,31 @@ class PropFilter(QWidget):
             multiscale=False,
             scale=self.layer.scale,
         )
+        # Create new cell and cyto mask images
+        if self.cell_img is not None:
+            new_cells = uts.remove_labels(
+                img=self.cell_img,
+                label_map=self.labels_to_hide_dict,
+                relabel=self.relabel_ckb.isChecked(),
+            )
+            new_cyto = uts.remove_labels(
+                img=self.cyto_img,
+                label_map=self.labels_to_hide_dict,
+                relabel=self.relabel_ckb.isChecked(),
+            )
+            # Add them to the viewer
+            self.viewer.add_labels(
+                new_cells,
+                name=self.layer.name + "_1-Cells",
+                multiscale=False,
+                scale=self.layer.scale,
+            )
+            self.viewer.add_labels(
+                new_cyto,
+                name=self.layer.name + "_1-Cytoplasm",
+                multiscale=False,
+                scale=self.layer.scale,
+            )
 
     def setup_sliders(self):
         """

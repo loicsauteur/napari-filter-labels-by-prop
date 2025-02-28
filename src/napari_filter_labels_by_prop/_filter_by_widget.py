@@ -29,12 +29,6 @@ class FilterByWidget(QWidget):
 
     """
 
-    # TODO
-    #  - change to grid layout
-    #  - tick box to calculate features in cell and cyto masks
-    #    (-> save masks to PropFilter), and when create button is pressed
-    #    also create those masks
-
     def __init__(self, viewer: "napari.viewer.Viewer"):
         super().__init__()
         self.viewer = viewer
@@ -46,6 +40,7 @@ class FilterByWidget(QWidget):
         self.img_combobox = QComboBox()
         self.shape_match = QLabel("")
         self.projected_props_ckb = QCheckBox("")
+        self.compartments_cbx = QCheckBox("")
         self.shape_match.setStyleSheet("color: red")
         self.props_binary = [
             "label",
@@ -93,7 +88,10 @@ class FilterByWidget(QWidget):
         self.y_textbox = QLineEdit()
         self.x_textbox = QLineEdit()
         self.set_btn = QPushButton("Set")
-        self.set_btn.clicked.connect(self.click_set_btn)
+
+        # Compartment masks
+        self.lbl_cells = None
+        self.lbl_cyto = None
 
         # Create layout
         self.main_layout = QGridLayout()
@@ -106,7 +104,7 @@ class FilterByWidget(QWidget):
         self.init_combo_boxes()
         self.main_layout.addWidget(self.filter_widget, grid_row, 0, 1, -1)
 
-        # link combo-boxes to changes
+        # Link combo-boxes to changes
         self.viewer.layers.events.inserted.connect(self.on_add_layer)
         self.viewer.layers.events.removed.connect(self.on_remove_layer)
         self.lbl_combobox.currentIndexChanged.connect(
@@ -116,8 +114,38 @@ class FilterByWidget(QWidget):
             self.on_img_layer_selection
         )
         self.prop_combobox.currentIndexChanged.connect(self.on_prop_selection)
+        # Connect the pixel size set button
+        self.set_btn.clicked.connect(self.click_set_btn)
         # Connect the projected props checkbox
         self.projected_props_ckb.stateChanged.connect(self.update_properties)
+        # Connect the compartment creation checkbox
+        self.compartments_cbx.stateChanged.connect(self.create_compartments)
+
+    def create_compartments(self, force: bool = False):
+        """
+        Create cyto and cell masks.
+
+        Will not create compartments if the checkbox is not checked.
+        Will only create compartments if they do not exist already, unless
+        the force option is used.
+
+        :param force: in case the mask creation should be forces
+                      (e.g. on voxel_size change).
+        :return:
+        """
+        # Don't do anything if there is no label image to begin with
+        if self.lbl is None:
+            return
+        if not self.compartments_cbx.isChecked():
+            self.update_properties()
+            return
+        # Only create the masks if they do not exist already
+        if self.lbl_cells is None or force:
+            # scale changes? --> only considered when set button
+            self.lbl_cells, self.lbl_cyto = uts.create_cell_cyto_masks(
+                lbl=self.lbl, expansion=5, voxel_size=self.voxel_size
+            )
+            self.update_properties()
 
     def on_prop_selection(self, index: int):
         """
@@ -133,7 +161,6 @@ class FilterByWidget(QWidget):
             self.filter_widget.update_property(prop)
 
     def click_set_btn(self):
-        print("Set button was pressed")
         # set the scale in the layers
         # 2D
         if len(self.viewer.layers[self.lbl_layer_name].scale) == 2:
@@ -153,6 +180,9 @@ class FilterByWidget(QWidget):
             )
             self.viewer.layers[self.lbl_layer_name].scale = self.voxel_size
             if self.img_layer_name is not None:
+                print(
+                    "scale is:", self.viewer.layers[self.img_layer_name].scale
+                )
                 self.viewer.layers[self.img_layer_name].scale = self.voxel_size
         else:
             raise NotImplementedError(
@@ -160,6 +190,8 @@ class FilterByWidget(QWidget):
                 f"{len(self.viewer.layers[self.lbl_layer_name].scale)}D images "
                 f"is not supported"
             )
+        # (Re-)create the masks for compartments (only happens if checkbox ticked)
+        self.create_compartments(force=True)
         # Update the properties
         self.update_properties()
 
@@ -183,6 +215,8 @@ class FilterByWidget(QWidget):
                 f"Label shape = {self.lbl.shape}; "
                 f"Image shape = {self.img.shape}"
             )
+            self.img = None
+            self.img_layer_name = None
         else:
             intensity_image = self.img
             props = self.props_intensity.copy()
@@ -224,6 +258,11 @@ class FilterByWidget(QWidget):
             spacing=self.voxel_size,
         )
         self.calibrate_extra_props()
+        # Measure intensity props in compartments
+        self.measure_compartment_props(
+            intensity_image=intensity_image, props=props
+        )
+
         # Update the prop_filter widget
         self.filter_widget.update_widget(
             lbl_name=self.lbl_layer_name,
@@ -231,10 +270,46 @@ class FilterByWidget(QWidget):
             props_table=self.prop_table,
             prop="label",  # at initialisation this is always selected
         )
+        # Set the compartment masks in the FilterProp
+        self.filter_widget.set_compartment_masks(
+            cells=self.lbl_cells, cyto=self.lbl_cyto
+        )
         self.prop_combobox.clear()
         self.prop_combobox.addItems(self.prop_table.keys())
         # Add the properties to the labels layer features data
         self.add_layer_properties()
+
+    def measure_compartment_props(
+        self, intensity_image: np.ndarray, props: list
+    ):
+        # Don't measure if checkbox is not ticked
+        if not self.compartments_cbx.isChecked():
+            return
+        # Make sure that the masks exist (check one is enough)
+        if self.lbl_cyto is None:
+            return
+        # Create the region prop tables
+        table_cyto = regionprops_table(
+            self.lbl_cyto,
+            intensity_image=intensity_image,
+            properties=props,
+            spacing=self.voxel_size,
+        )
+        table_cell = regionprops_table(
+            self.lbl_cells,
+            intensity_image=intensity_image,
+            properties=props,
+            spacing=self.voxel_size,
+        )
+        # Rename the table headers (to include compartments)
+        table_cyto = uts.rename_dict_keys(table_cyto, prefix="Cyto")
+        table_cell = uts.rename_dict_keys(table_cell, prefix="Cell")
+        self.prop_table = uts.rename_dict_keys(
+            self.prop_table, prefix="Nucleus"
+        )
+        # Merge the 3 tables into self.prop_table
+        self.prop_table = uts.merge_dict(self.prop_table, table_cell)
+        self.prop_table = uts.merge_dict(self.prop_table, table_cyto)
 
     def calibrate_extra_props(self):
         # check that the keys are in the props table
@@ -254,17 +329,13 @@ class FilterByWidget(QWidget):
         # multiply the values
         for prop in __calibrated_extra_props__:
             if "area" in prop:
-                print(prop, "before", self.prop_table[prop])
                 self.prop_table[prop] = (
                     self.prop_table[prop] * self.voxel_size[-1] ** 2
                 )
-                print(prop, "after", self.prop_table[prop])
             else:
-                print(prop, "before", self.prop_table[prop])
                 self.prop_table[prop] = (
                     self.prop_table[prop] * self.voxel_size[-1]
                 )
-                print(prop, "after", self.prop_table[prop])
 
     def add_layer_properties(self):
         """
@@ -318,7 +389,7 @@ class FilterByWidget(QWidget):
         """
 
         # On label layer change and image_layer(_name) is available
-        if not is_img_layer and self.img_layer_name is not None:
+        if not is_img_layer and self.img is not None:
             # Favor image layer scale
             img_scale = self.viewer.layers[self.img_layer_name].scale
             # If label and image layer scales are not the same?
@@ -405,6 +476,9 @@ class FilterByWidget(QWidget):
         if index != -1:
             # Reset the voxel size
             self.reset_voxel_size()
+            # Reset the  cell & cyto masks
+            self.lbl_cells = None
+            self.lbl_cyto = None
             # Load the layer to class variables
             self.lbl_layer_name = self.lbl_combobox.itemText(index)
             self.lbl = self.viewer.layers[self.lbl_layer_name].data
@@ -417,11 +491,16 @@ class FilterByWidget(QWidget):
                 return
             scale = self.viewer.layers[self.lbl_layer_name].scale
             self.check_and_set_scale(scale=scale)
+            # Check whether the compartment check box is check to create masks
+            if self.compartments_cbx.isChecked():
+                self.create_compartments()
             self.update_properties()
         else:
             # No labels selected, reset the widget...
             self.lbl_layer_name = None
             self.lbl = None
+            self.lbl_cyto = None
+            self.lbl_cells = None
             self.prop_combobox.clear()
             self.prop_table = None
             self.filter_widget.hide_widget(clear=True)
@@ -543,7 +622,8 @@ class FilterByWidget(QWidget):
         Set up the widget layout.
 
         Adds label choice, image choice, info about shape miss-match,
-        image calibration setter, projected shape choice, measurement choice.
+        image calibration setter, compartment measure choice,
+        projected shape choice, measurement choice.
 
         Does not add the PropFilter widget, this is added after initialisation.
         :return: int of next row to add elements to grid-layout
@@ -592,6 +672,22 @@ class FilterByWidget(QWidget):
         self.main_layout.addWidget(self.z_textbox, row, 1)
         self.main_layout.addWidget(self.y_textbox, row, 2)
         self.main_layout.addWidget(self.x_textbox, row, 3)
+        self.main_layout.addWidget(self.set_btn, row, 4)
+        row += 1
+        # Checkbox for compartment measurements
+        comp_title = QLabel("Measure cytoplasm and cell compartments")
+        comp_title.setToolTip(
+            "Assuming your labels are nuclei, measure properties in "
+            "additional compartments, created by expansion of 5 "
+            "units."
+        )
+        self.main_layout.addWidget(
+            comp_title, row, 0, 1, 4, alignment=Qt.AlignmentFlag.AlignLeft
+        )
+        self.compartments_cbx.setChecked(False)
+        self.main_layout.addWidget(
+            self.compartments_cbx, row, 4, Qt.AlignmentFlag.AlignRight
+        )
         row += 1
         # Checkbox for 3D projected properties
         project_title = QLabel("Measure projected shape properties")
@@ -603,9 +699,14 @@ class FilterByWidget(QWidget):
         )
         self.projected_props_ckb.setChecked(False)
         self.main_layout.addWidget(
-            project_title, row, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignLeft
+            project_title, row, 0, 1, 4, alignment=Qt.AlignmentFlag.AlignLeft
         )
-        self.main_layout.addWidget(self.projected_props_ckb, row, 3)
+        self.main_layout.addWidget(
+            self.projected_props_ckb,
+            row,
+            4,
+            alignment=Qt.AlignmentFlag.AlignRight,
+        )
         row += 1
         # Measurement/property selection entry
         prop_title = QLabel("Measurement")

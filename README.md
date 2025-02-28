@@ -54,6 +54,17 @@ triggered only once you release the sliders.
 Another similar plugin you could consider checking out:
 [napari-skimage-regionprops](https://www.napari-hub.org/plugins/napari-skimage-regionprops).
 
+Pixel/Voxel size are read from the napari layer scale attribute (defaults to 1 if not specified when adding the layer).
+You can manually enter the size and press the `Set` button, which will set the layer scale,
+and measure the shape properties with calibrated units
+
+The "Measure projected shape properties" option is only available for 3D images.
+It measures additional properties of Z-projected labels (including: "area", "convex_area", "circularity" and "perimeter").
+
+The "Measure cytoplasm and cell compartments" is intended for label images that represent nuclei.
+With this option selected, cytoplasm and cell masks will be created by a dilation of 5 units (pixels or calibrated).
+Measurement in those compartments will be made and be used to filter on.
+`Create labels` will also add the respective cytoplasm and cell mask layers to the napari viewer.
 
 <!--
          ## TODO: add feature measurement also to layer.features?
