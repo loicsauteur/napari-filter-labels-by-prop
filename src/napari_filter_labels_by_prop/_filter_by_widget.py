@@ -180,9 +180,6 @@ class FilterByWidget(QWidget):
             )
             self.viewer.layers[self.lbl_layer_name].scale = self.voxel_size
             if self.img_layer_name is not None:
-                print(
-                    "scale is:", self.viewer.layers[self.img_layer_name].scale
-                )
                 self.viewer.layers[self.img_layer_name].scale = self.voxel_size
         else:
             raise NotImplementedError(

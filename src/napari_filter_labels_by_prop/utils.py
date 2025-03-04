@@ -185,13 +185,19 @@ def create_cell_cyto_masks(
         )
     # skimage has anisotropic expand labels from v0.23.0 on
     # (also requires scipy>=1.8, but I don't think this will be a problem)
+    pbr = progress(total=2)
+    pbr.set_description("Expanding cells...")
     start = time()
     cells = cell_expansion(lbl, spacing=voxel_size, expansion=expansion)
+    pbr.update(1)
+    pbr.set_description("Creating cytoplasm...")
     print("Creating cells took:", time() - start)
     start = time()
     # create cyto mask
     cyto = np.subtract(cells, lbl)
+    pbr.update(2)
     print("Creating cytoplasm took:", time() - start)
+    pbr.close()
     return cells, cyto
 
 
